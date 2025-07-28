@@ -20,8 +20,8 @@ socketio = SocketIO(app, async_mode='eventlet', cors_allowed_origins="*")
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # --- IMPORTANT: PASTE YOUR CREDENTIALS HERE ---
-TELEGRAM_TOKEN = "8198854299:AAHs7WTRyqfk_EtvEs98YeY0b8vbf44ptOs"
-TELEGRAM_CHAT_ID = "1969994554"
+TELEGRAM_TOKEN = "YOUR_TELEGRAM_BOT_TOKEN"
+TELEGRAM_CHAT_ID = "YOUR_TELEGRAM_CHAT_ID"
 
 # --- Global State Management ---
 ACTIVE_TASKS = {}
@@ -34,24 +34,34 @@ def get_binance_usdt_symbols():
     url = "https://api.binance.com/api/v3/exchangeInfo"
     logging.info("Attempting to fetch symbols from Binance...")
     try:
-        # **FIX:** Increased timeout for server environments and improved error handling.
         response = requests.get(url, timeout=20)
-        response.raise_for_status() # Will raise an exception for bad status codes (4xx or 5xx)
+        response.raise_for_status() 
         data = response.json()
         
+        # Add more detailed logging for debugging on the server
+        total_symbols = len(data.get('symbols', []))
+        logging.info(f"Received {total_symbols} total symbols from Binance API.")
+        if total_symbols > 0:
+            logging.info(f"Sample of first symbol data: {data['symbols'][0]}")
+
+        # **FINAL FIX:** Using the most reliable filtering method based on the 'permissions' array.
         symbols = [
-            s['symbol'] for s in data['symbols'] 
-            if s['status'] == 'TRADING' and s['quoteAsset'] == 'USDT' and s.get('isSpotTradingAllowed', False)
+            s['symbol'] for s in data.get('symbols', []) 
+            if s.get('status') == 'TRADING' 
+            and s.get('quoteAsset') == 'USDT' 
+            and 'SPOT' in s.get('permissions', [])
         ]
         
-        if not symbols:
-             raise ValueError("Filtering returned no symbols.")
-
         symbols.sort()
-        logging.info(f"Successfully fetched {len(symbols)} USDT trading pairs from Binance.")
+        logging.info(f"Successfully fetched {len(symbols)} USDT trading pairs after filtering.")
+
+        # If filtering still results in an empty list, raise an error to trigger the fallback.
+        if not symbols:
+            raise ValueError("Filtering the symbol list resulted in 0 symbols.")
+
         return symbols
     except Exception as e:
-        logging.error(f"Could not fetch symbols from Binance: {e}. Using fallback list.")
+        logging.error(f"Could not fetch/filter symbols from Binance: {e}. Using fallback list.")
         # Provide a fallback list in case the API call fails for any reason
         return ["BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT", "ADAUSDT", "BNBUSDT", "AVAXUSDT"]
 
