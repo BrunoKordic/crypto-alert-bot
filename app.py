@@ -32,24 +32,28 @@ BINANCE_SYMBOLS = [] # Will be populated at startup
 def get_binance_usdt_symbols():
     """Fetches all USDT trading pairs from Binance."""
     url = "https://api.binance.com/api/v3/exchangeInfo"
+    logging.info("Attempting to fetch symbols from Binance...")
     try:
-        response = requests.get(url, timeout=10)
-        response.raise_for_status()
+        # **FIX:** Increased timeout for server environments and improved error handling.
+        response = requests.get(url, timeout=20)
+        response.raise_for_status() # Will raise an exception for bad status codes (4xx or 5xx)
         data = response.json()
         
-        # **FIX:** Updated the filtering logic to be more reliable.
-        # It now checks for spot trading permission directly.
         symbols = [
             s['symbol'] for s in data['symbols'] 
             if s['status'] == 'TRADING' and s['quoteAsset'] == 'USDT' and s.get('isSpotTradingAllowed', False)
         ]
+        
+        if not symbols:
+             raise ValueError("Filtering returned no symbols.")
+
         symbols.sort()
         logging.info(f"Successfully fetched {len(symbols)} USDT trading pairs from Binance.")
         return symbols
     except Exception as e:
-        logging.error(f"Could not fetch symbols from Binance: {e}")
-        # Provide a fallback list in case the API call fails
-        return ["BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT", "ADAUSDT"]
+        logging.error(f"Could not fetch symbols from Binance: {e}. Using fallback list.")
+        # Provide a fallback list in case the API call fails for any reason
+        return ["BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT", "ADAUSDT", "BNBUSDT", "AVAXUSDT"]
 
 # --- Telegram & Alerting Functions ---
 def send_telegram_message(message):
