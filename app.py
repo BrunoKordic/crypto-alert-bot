@@ -20,8 +20,8 @@ socketio = SocketIO(app, async_mode='eventlet', cors_allowed_origins="*")
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # --- IMPORTANT: PASTE YOUR CREDENTIALS HERE ---
-TELEGRAM_TOKEN = "YOUR_TELEGRAM_BOT_TOKEN"
-TELEGRAM_CHAT_ID = "YOUR_TELEGRAM_CHAT_ID"
+TELEGRAM_TOKEN = "8198854299:AAHs7WTRyqfk_EtvEs98YeY0b8vbf44ptOs"
+TELEGRAM_CHAT_ID = "1969994554"
 
 # --- Global State Management ---
 ACTIVE_TASKS = {}
