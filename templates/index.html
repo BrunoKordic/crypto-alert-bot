@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Interactive Crypto Bot Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <!-- Library for searchable dropdowns -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.bootstrap5.min.css"
+      rel="stylesheet"
+    />
+    <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
+
+    <style>
+      body {
+        font-family: "Inter", sans-serif;
+        background-color: #0f172a;
+      }
+      .slot {
+        background-color: #1e293b;
+        border-color: #334155;
+        transition: all 0.3s ease-in-out;
+      }
+      .animate-flash {
+        animation: flash 1.5s ease-in-out;
+      }
+      @keyframes flash {
+        0%,
+        100% {
+          background-color: #1e293b;
+        }
+        50% {
+          background-color: #334155;
+        }
+      }
+      /* Custom styles for Tom-Select to match the dark theme */
+      .ts-control {
+        background-color: #1e293b !important;
+        border-color: #334155 !important;
+        color: white !important;
+      }
+      .ts-dropdown {
+        background-color: #1e293b !important;
+        border-color: #334155 !important;
+      }
+      .ts-dropdown .option {
+        color: #cbd5e1 !important;
+      }
+      .ts-dropdown .option:hover,
+      .ts-dropdown .active {
+        background-color: #334155 !important;
+        color: white !important;
+      }
+    </style>
+  </head>
+  <body class="text-white antialiased">
+    <div class="container mx-auto p-4 md:p-8">
+      <header class="text-center mb-8">
+        <h1 class="text-3xl md:text-4xl font-bold text-cyan-400">
+          Crypto Price Alert Bot
+        </h1>
+        <p class="text-gray-400 mt-2">Interactive Control Panel</p>
+      </header>
+
+      <div class="text-center mb-8">
+        <button
+          id="add-slot-btn"
+          class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-slate-900"
+        >
+          Add 1 More Slot
+        </button>
+      </div>
+
+      <main
+        id="slots-container"
+        class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8"
+      >
+        <!-- Interactive slots will be dynamically inserted here -->
+      </main>
+
+      <footer class="text-center mt-8 text-gray-500 text-sm">
+        <p>
+          Select a symbol, choose percentages, and click "Start Monitoring" to
+          begin.
+        </p>
+      </footer>
+    </div>
+
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        const slotsContainer = document.getElementById("slots-container");
+        const addSlotBtn = document.getElementById("add-slot-btn");
+        const socket = io();
+        let slotCounter = 0;
+        let binanceSymbols = []; // To store the list from the backend
+
+        const createNewSlot = () => {
+          slotCounter++;
+          const slotId = `slot-${slotCounter}`;
+          const slotElement = document.createElement("div");
+          slotElement.id = slotId;
+          slotElement.className = "slot p-6 rounded-xl shadow-lg border";
+          slotElement.innerHTML = getSlotTemplate(slotId, slotCounter);
+          slotsContainer.appendChild(slotElement);
+
+          // Initialize the TomSelect dropdown for the new slot
+          const symbolSelectElement =
+            slotElement.querySelector(".symbol-select");
+          new TomSelect(symbolSelectElement, {
+            create: false,
+            sortField: { field: "text", direction: "asc" },
+            maxOptions: 1000,
+          });
+
+          // If we already have the symbols, populate the new dropdown
+          if (binanceSymbols.length > 0) {
+            populateSelect(symbolSelectElement);
+          }
+        };
+
+        const getSlotTemplate = (slotId, slotNumber) => {
+          const presetPercentages = [
+            1, 2, 5, 10, 15, 20, -1, -2, -5, -10, -15, -20,
+          ];
+          const percentageButtons = presetPercentages
+            .map((p) => {
+              const color = p > 0 ? "green" : "red";
+              const bgColor = "bg-slate-700";
+              const hoverBgColor = "hover:bg-slate-600";
+              return `<button type="button" data-value="${p}" class="preset-btn flex-grow ${bgColor} ${hoverBgColor} text-${color}-400 font-mono py-1 px-2 rounded-md transition-colors duration-200">${
+                p > 0 ? "+" : ""
+              }${p}%</button>`;
+            })
+            .join("");
+
+          return `
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-2xl font-semibold">Slot ${slotNumber}</h2>
+                    <div class="status-indicator w-4 h-4 rounded-full bg-gray-500" title="Offline"></div>
+                </div>
+                <div class="controls-container space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-1">Coin Symbol</label>
+                        <select class="symbol-select" placeholder="Loading coins..."></select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-1">Alert Percentages</label>
+                        <input type="text" class="percentages-input w-full bg-slate-800 border border-slate-600 rounded-md px-3 py-2 text-white focus:ring-2 focus:ring-cyan-500 focus:outline-none" placeholder="e.g., 1, 5, -10">
+                        <div class="flex flex-wrap gap-2 mt-2">${percentageButtons}</div>
+                    </div>
+                    <button class="start-stop-btn w-full bg-cyan-500 hover:bg-cyan-600 text-white font-bold py-2 px-4 rounded-md transition-all">Start Monitoring</button>
+                </div>
+                <div class="data-display mt-6 border-t border-slate-700 pt-4 space-y-3 hidden">
+                    <div class="flex justify-between items-baseline"><span class="text-gray-400">Current Price:</span><span class="current-price text-2xl font-bold">--</span></div>
+                    <div class="flex justify-between items-baseline"><span class="text-gray-400">Base Price:</span><span class="base-price text-lg font-mono">--</span></div>
+                    <div class="flex justify-between items-baseline"><span class="text-gray-400">Change:</span><span class="percentage-change text-lg font-bold">--</span></div>
+                </div>
+                <div class="alerts-container mt-4 space-y-2"></div>
+            `;
+        };
+
+        // **FIX 1: Use Event Delegation for all clicks inside the slots container**
+        slotsContainer.addEventListener("click", (event) => {
+          const target = event.target;
+          const slotElement = target.closest(".slot");
+          if (!slotElement) return; // Click was outside any slot
+          const slotId = slotElement.id;
+
+          // Handle preset percentage button clicks
+          if (target.classList.contains("preset-btn")) {
+            const value = target.dataset.value;
+            const percentagesInput =
+              slotElement.querySelector(".percentages-input");
+            const currentValues = percentagesInput.value
+              ? percentagesInput.value.split(",").map((s) => s.trim())
+              : [];
+            if (!currentValues.includes(value)) {
+              currentValues.push(value);
+              percentagesInput.value = currentValues
+                .filter((v) => v)
+                .join(", ");
+            }
+          }
+
+          // Handle Start/Stop button clicks
+          if (target.classList.contains("start-stop-btn")) {
+            const startStopBtn = target;
+            const isRunning = startStopBtn.dataset.running === "true";
+            if (isRunning) {
+              socket.emit("stop_monitoring", { slot_id: slotId });
+            } else {
+              const tomSelect =
+                slotElement.querySelector(".symbol-select").tomselect;
+              const percentagesInput =
+                slotElement.querySelector(".percentages-input");
+              const symbol = tomSelect.getValue();
+              const thresholds = percentagesInput.value
+                .split(",")
+                .map((p) => parseFloat(p.trim()))
+                .filter((p) => !isNaN(p) && p !== 0);
+              if (!symbol || thresholds.length === 0) {
+                createAlert(
+                  slotId,
+                  "Symbol and at least one percentage are required.",
+                  "error"
+                );
+                return;
+              }
+              socket.emit("start_monitoring", {
+                slot_id: slotId,
+                symbol,
+                thresholds,
+              });
+            }
+          }
+        });
+
+        const createAlert = (slotId, message, type) => {
+          const alertsContainer = document.querySelector(
+            `#${slotId} .alerts-container`
+          );
+          if (!alertsContainer) return;
+          const alertDiv = document.createElement("div");
+          let bgColor, textColor, icon;
+          switch (type) {
+            case "success":
+              bgColor = "bg-green-500/20";
+              textColor = "text-green-300";
+              icon = "✅";
+              break;
+            case "danger":
+              bgColor = "bg-red-500/20";
+              textColor = "text-red-300";
+              icon = "🚨";
+              break;
+            case "error":
+              bgColor = "bg-red-800/50";
+              textColor = "text-red-300";
+              icon = "❌";
+              break;
+            default:
+              bgColor = "bg-blue-500/20";
+              textColor = "text-blue-300";
+              icon = "ℹ️";
+              break;
+          }
+          alertDiv.className = `p-3 rounded-md text-sm ${bgColor} ${textColor} flex items-start space-x-2`;
+          alertDiv.innerHTML = `<span>${icon}</span><span>${message}</span>`;
+          alertsContainer.prepend(alertDiv);
+          while (alertsContainer.children.length > 5) {
+            alertsContainer.removeChild(alertsContainer.lastChild);
+          }
+        };
+
+        const formatPrice = (price) => {
+          if (!price || price === 0) return "--";
+          return price.toLocaleString("en-US", {
+            style: "currency",
+            currency: "USD",
+            minimumFractionDigits: price < 1 ? 6 : 2,
+          });
+        };
+
+        const setSlotUIMode = (slotId, mode) => {
+          const el = document.getElementById(slotId);
+          if (!el) return;
+          const startStopBtn = el.querySelector(".start-stop-btn");
+          const statusIndicator = el.querySelector(".status-indicator");
+          const dataDisplay = el.querySelector(".data-display");
+          const tomSelect = el.querySelector(".symbol-select").tomselect;
+          const controls = el.querySelectorAll(
+            ".controls-container input, .controls-container button.preset-btn"
+          );
+
+          if (mode === "running") {
+            startStopBtn.textContent = "Stop Monitoring";
+            startStopBtn.dataset.running = "true";
+            startStopBtn.classList.remove("bg-cyan-500", "hover:bg-cyan-600");
+            startStopBtn.classList.add("bg-red-600", "hover:bg-red-700");
+            statusIndicator.classList.remove("bg-gray-500", "bg-red-500");
+            statusIndicator.classList.add("bg-green-500");
+            statusIndicator.title = "Monitoring";
+            dataDisplay.classList.remove("hidden");
+            if (tomSelect) tomSelect.disable();
+            controls.forEach((c) => (c.disabled = true));
+          } else {
+            // 'stopped'
+            startStopBtn.textContent = "Start Monitoring";
+            startStopBtn.dataset.running = "false";
+            startStopBtn.classList.remove("bg-red-600", "hover:bg-red-700");
+            startStopBtn.classList.add("bg-cyan-500", "hover:bg-cyan-600");
+            statusIndicator.classList.remove("bg-green-500");
+            statusIndicator.classList.add("bg-gray-500");
+            statusIndicator.title = "Offline";
+            dataDisplay.classList.add("hidden");
+            if (tomSelect) tomSelect.enable();
+            controls.forEach((c) => (c.disabled = false));
+          }
+        };
+
+        const populateSelect = (selectElement) => {
+          const tomSelect = selectElement.tomselect;
+          if (tomSelect && !tomSelect.isDisabled) {
+            tomSelect.clear();
+            tomSelect.clearOptions();
+            tomSelect.addOptions(
+              binanceSymbols.map((s) => ({ value: s, text: s }))
+            );
+            tomSelect.setPlaceholder("Search for a coin...");
+            tomSelect.refreshOptions(false);
+          }
+        };
+
+        // --- Socket.IO Event Listeners ---
+        socket.on("connect", () =>
+          console.log("Successfully connected to Python backend!")
+        );
+
+        socket.on("symbol_list", (data) => {
+          console.log(`Received ${data.symbols.length} symbols from backend.`);
+          binanceSymbols = data.symbols;
+          document.querySelectorAll(".symbol-select").forEach(populateSelect);
+        });
+
+        socket.on("task_started", (data) =>
+          setSlotUIMode(data.slot_id, "running")
+        );
+        socket.on("task_stopped", (data) =>
+          setSlotUIMode(data.slot_id, "stopped")
+        );
+
+        socket.on("status_update", (update) => {
+          const { slot_id, data } = update;
+          const el = document.getElementById(slot_id);
+          if (!el) return;
+          el.querySelector(".current-price").textContent = formatPrice(
+            data.current_price
+          );
+          el.querySelector(".base-price").textContent = formatPrice(
+            data.base_price
+          );
+          const percEl = el.querySelector(".percentage-change");
+          percEl.textContent = `${data.percentage_change.toFixed(2)}%`;
+          percEl.className = `percentage-change text-lg font-bold ${
+            data.percentage_change >= 0 ? "text-green-400" : "text-red-400"
+          }`;
+        });
+
+        socket.on("log_message", (log) => {
+          createAlert(log.slot_id, log.message, log.type);
+          if (log.type === "danger") {
+            const slotEl = document.getElementById(log.slot_id);
+            if (slotEl) {
+              slotEl.classList.add("animate-flash");
+              setTimeout(() => slotEl.classList.remove("animate-flash"), 1500);
+            }
+          }
+        });
+
+        addSlotBtn.addEventListener("click", createNewSlot);
+
+        // Create the first slot immediately on page load
+        createNewSlot();
+      });
+    </script>
+  </body>
+</html>

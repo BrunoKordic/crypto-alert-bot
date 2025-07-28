@@ -1,0 +1,6 @@
+Flask
+Flask-SocketIO
+eventlet
+requests
+websocket-client
+gunicorn
