@@ -25,6 +25,7 @@ TELEGRAM_CHAT_ID = "1969994554"
 ACTIVE_TASKS = {}
 lock = threading.Lock()
 BINANCE_SYMBOLS = []
+# **DEFINITIVE FIX:** Use a simple boolean flag to track if symbols have been loaded.
 SYMBOLS_LOADED = False
 
 # --- Binance API Functions ---
@@ -138,10 +139,13 @@ def handle_connect():
     global SYMBOLS_LOADED
     logging.info(f'Client connected: {request.sid}')
     
+    # Only the very first client connection will trigger the symbol fetch.
     with lock:
         if not SYMBOLS_LOADED:
+            # Use start_background_task here, as it's triggered by a client event.
             socketio.start_background_task(get_binance_usdt_symbols)
     
+    # If symbols are already loaded, send them to the new client.
     if SYMBOLS_LOADED:
         socketio.emit('symbol_list', {'symbols': BINANCE_SYMBOLS}, room=request.sid)
 
