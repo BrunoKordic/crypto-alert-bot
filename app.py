@@ -33,7 +33,11 @@ def get_binance_usdt_symbols():
     global BINANCE_SYMBOLS, SYMBOLS_LOADED
     logging.info("BACKGROUND TASK: Attempting to fetch symbols from Binance...")
     try:
-        response = requests.get("https://api.binance.com/api/v3/exchangeInfo", timeout=20)
+        # **DEFINITIVE FIX:** Added a standard User-Agent header to the request.
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+        response = requests.get("https://api.binance.com/api/v3/exchangeInfo", timeout=20, headers=headers)
         response.raise_for_status()
         data = response.json()
         
