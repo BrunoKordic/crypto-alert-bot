@@ -25,7 +25,7 @@ TELEGRAM_CHAT_ID = "1969994554"
 ACTIVE_TASKS = {}
 lock = threading.Lock()
 BINANCE_SYMBOLS = []
-# **FIX:** Corrected the variable name to match its usage below.
+# **DEFINITIVE FIX:** Corrected the variable name to be consistent.
 SYMBOLS_LOADED_EVENT = threading.Event()
 
 # --- Binance API Functions ---
