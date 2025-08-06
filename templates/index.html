@@ -87,6 +87,45 @@
         let slotCounter = 0;
         let binanceSymbols = [];
 
+        // **DEFINITIVE FIX: Fetch symbols directly from Binance in the browser.**
+        const fetchBinanceSymbols = async () => {
+          try {
+            const response = await fetch(
+              "https://api.binance.com/api/v3/exchangeInfo"
+            );
+            const data = await response.json();
+            const symbols = data.symbols
+              .filter(
+                (s) =>
+                  s.status === "TRADING" &&
+                  s.quoteAsset === "USDT" &&
+                  s.isSpotTradingAllowed
+              )
+              .map((s) => s.symbol);
+            symbols.sort();
+            binanceSymbols = symbols;
+            console.log(
+              `Successfully fetched ${binanceSymbols.length} symbols from Binance.`
+            );
+            // Populate any existing dropdowns now that we have the list.
+            document.querySelectorAll(".symbol-select").forEach(populateSelect);
+          } catch (error) {
+            console.error("Failed to fetch symbols from Binance:", error);
+            // Use a fallback if the API fails
+            binanceSymbols = [
+              "BTCUSDT",
+              "ETHUSDT",
+              "SOLUSDT",
+              "XRPUSDT",
+              "DOGEUSDT",
+              "ADAUSDT",
+              "BNBUSDT",
+              "AVAXUSDT",
+            ];
+            document.querySelectorAll(".symbol-select").forEach(populateSelect);
+          }
+        };
+
         const createNewSlot = () => {
           slotCounter++;
           const slotId = `slot-${slotCounter}`;
@@ -252,45 +291,6 @@
               binanceSymbols.map((s) => ({ value: s, text: s }))
             );
             tomSelect.setPlaceholder("Search for a coin...");
-          }
-        };
-
-        // **DEFINITIVE FIX: Fetch symbols directly from Binance in the browser.**
-        const fetchBinanceSymbols = async () => {
-          try {
-            const response = await fetch(
-              "https://api.binance.com/api/v3/exchangeInfo"
-            );
-            const data = await response.json();
-            const symbols = data.symbols
-              .filter(
-                (s) =>
-                  s.status === "TRADING" &&
-                  s.quoteAsset === "USDT" &&
-                  s.isSpotTradingAllowed
-              )
-              .map((s) => s.symbol);
-            symbols.sort();
-            binanceSymbols = symbols;
-            console.log(
-              `Successfully fetched ${binanceSymbols.length} symbols from Binance.`
-            );
-            // Populate any existing dropdowns now that we have the list.
-            document.querySelectorAll(".symbol-select").forEach(populateSelect);
-          } catch (error) {
-            console.error("Failed to fetch symbols from Binance:", error);
-            // Use a fallback if the API fails
-            binanceSymbols = [
-              "BTCUSDT",
-              "ETHUSDT",
-              "SOLUSDT",
-              "XRPUSDT",
-              "DOGEUSDT",
-              "ADAUSDT",
-              "BNBUSDT",
-              "AVAXUSDT",
-            ];
-            document.querySelectorAll(".symbol-select").forEach(populateSelect);
           }
         };
 
