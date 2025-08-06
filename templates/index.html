@@ -99,7 +99,7 @@
           new TomSelect(symbolSelect, {
             create: false,
             sortField: { field: "text", direction: "asc" },
-            maxOptions: 1500,
+            maxOptions: 2000,
           });
           if (binanceSymbols.length > 0) populateSelect(symbolSelect);
         };
@@ -255,17 +255,46 @@
           }
         };
 
-        socket.on("connect", () => {
-          console.log("Connected to backend. Requesting symbol list.");
-          socket.emit("request_symbol_list");
-        });
+        // **DEFINITIVE FIX: Fetch symbols directly from Binance in the browser.**
+        const fetchBinanceSymbols = async () => {
+          try {
+            const response = await fetch(
+              "https://api.binance.com/api/v3/exchangeInfo"
+            );
+            const data = await response.json();
+            const symbols = data.symbols
+              .filter(
+                (s) =>
+                  s.status === "TRADING" &&
+                  s.quoteAsset === "USDT" &&
+                  s.isSpotTradingAllowed
+              )
+              .map((s) => s.symbol);
+            symbols.sort();
+            binanceSymbols = symbols;
+            console.log(
+              `Successfully fetched ${binanceSymbols.length} symbols from Binance.`
+            );
+            // Populate any existing dropdowns now that we have the list.
+            document.querySelectorAll(".symbol-select").forEach(populateSelect);
+          } catch (error) {
+            console.error("Failed to fetch symbols from Binance:", error);
+            // Use a fallback if the API fails
+            binanceSymbols = [
+              "BTCUSDT",
+              "ETHUSDT",
+              "SOLUSDT",
+              "XRPUSDT",
+              "DOGEUSDT",
+              "ADAUSDT",
+              "BNBUSDT",
+              "AVAXUSDT",
+            ];
+            document.querySelectorAll(".symbol-select").forEach(populateSelect);
+          }
+        };
 
-        socket.on("symbol_list", (data) => {
-          console.log(`Received ${data.symbols.length} symbols.`);
-          binanceSymbols = data.symbols;
-          document.querySelectorAll(".symbol-select").forEach(populateSelect);
-        });
-
+        socket.on("connect", () => console.log("Connected to Python backend!"));
         socket.on("task_started", (data) =>
           setSlotUIMode(data.slot_id, "running")
         );
@@ -304,6 +333,7 @@
 
         addSlotBtn.addEventListener("click", createNewSlot);
         createNewSlot();
+        fetchBinanceSymbols(); // Fetch symbols when the page loads.
       });
     </script>
   </body>
