@@ -18,14 +18,14 @@ socketio = SocketIO(app, async_mode='eventlet', cors_allowed_origins="*")
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # --- IMPORTANT: PASTE YOUR CREDENTIALS HERE ---
-TELEGRAM_TOKEN = "8198854299:AAHs7WTRyqfk_EtvEs98YeY0b8vbf44ptOs"
-TELEGRAM_CHAT_ID = "1969994554"
+TELEGRAM_TOKEN = "YOUR_TELEGRAM_BOT_TOKEN"
+TELEGRAM_CHAT_ID = "YOUR_TELEGRAM_CHAT_ID"
 
 # --- Global State Management ---
 ACTIVE_TASKS = {}
 lock = threading.Lock()
 BINANCE_SYMBOLS = []
-# **DEFINITIVE FIX:** Corrected the variable name to be consistent.
+# **DEFINITIVE FIX:** Use a threading.Event to safely signal when symbols are loaded.
 SYMBOLS_LOADED_EVENT = threading.Event()
 
 # --- Binance API Functions ---
@@ -43,7 +43,7 @@ def get_binance_usdt_symbols():
             s['symbol'] for s in data.get('symbols', []) 
             if s.get('status') == 'TRADING' 
             and s.get('quoteAsset') == 'USDT' 
-            and s.get('isSpotTradingAllowed', False)
+            and 'SPOT' in s.get('permissions', [])
         ]
         symbols.sort()
         
@@ -56,7 +56,9 @@ def get_binance_usdt_symbols():
         logging.error(f"BACKGROUND TASK: Could not fetch symbols: {e}. Using fallback list.")
         BINANCE_SYMBOLS = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT", "ADAUSDT", "BNBUSDT", "AVAXUSDT"]
     finally:
+        # Signal that the loading process is complete, whether it succeeded or failed.
         SYMBOLS_LOADED_EVENT.set()
+        # After loading, broadcast the list to all currently connected clients.
         socketio.emit('symbol_list', {'symbols': BINANCE_SYMBOLS})
 
 
