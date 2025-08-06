@@ -17,25 +17,24 @@ socketio = SocketIO(app, async_mode='eventlet', cors_allowed_origins="*")
 # --- Configuration & Bot Logic ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# --- IMPORTANT: PASTE YOUR CREDENTIALS HERE ---
-TELEGRAM_TOKEN = "YOUR_TELEGRAM_BOT_TOKEN"
-TELEGRAM_CHAT_ID = "YOUR_TELEGRAM_CHAT_ID"
+# --- YOUR CREDENTIALS ---
+TELEGRAM_TOKEN = "8198854299:AAHs7WTRyqfk_EtvEs98YeY0b8vbf44ptOs"
+TELEGRAM_CHAT_ID = "1969994554"
 
 # --- Global State Management ---
 ACTIVE_TASKS = {}
 lock = threading.Lock()
 BINANCE_SYMBOLS = []
-# Use a threading.Event to safely signal when symbols are loaded.
-SYMBOLS_LOADED_EVENT = threading.Event()
+# **DEFINITIVE FIX:** Use a simple boolean flag, not a threading.Event
+SYMBOLS_LOADED = False
 
 # --- Binance API Functions ---
 def get_binance_usdt_symbols():
     """Fetches all USDT trading pairs from Binance."""
-    global BINANCE_SYMBOLS
-    url = "https://api.binance.com/api/v3/exchangeInfo"
+    global BINANCE_SYMBOLS, SYMBOLS_LOADED
     logging.info("BACKGROUND TASK: Attempting to fetch symbols from Binance...")
     try:
-        response = requests.get(url, timeout=20)
+        response = requests.get("https://api.binance.com/api/v3/exchangeInfo", timeout=20)
         response.raise_for_status()
         data = response.json()
         
@@ -56,9 +55,8 @@ def get_binance_usdt_symbols():
         logging.error(f"BACKGROUND TASK: Could not fetch symbols: {e}. Using fallback list.")
         BINANCE_SYMBOLS = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT", "ADAUSDT", "BNBUSDT", "AVAXUSDT"]
     finally:
-        # **CRITICAL FIX:** Signal that the loading process is complete, whether it succeeded or failed.
-        SYMBOLS_LOADED_EVENT.set()
-        # After loading, broadcast the list to all currently connected clients.
+        SYMBOLS_LOADED = True
+        logging.info("BACKGROUND TASK: Symbol loading complete. Broadcasting to clients.")
         socketio.emit('symbol_list', {'symbols': BINANCE_SYMBOLS})
 
 
@@ -133,13 +131,16 @@ def index():
 
 @socketio.on('connect')
 def handle_connect():
+    """Handles new client connections."""
     logging.info(f'Client connected: {request.sid}')
-    if SYMBOLS_LOADED_EVENT.is_set():
+    # If symbols are already loaded, send them to the new client.
+    if SYMBOLS_LOADED:
         socketio.emit('symbol_list', {'symbols': BINANCE_SYMBOLS}, room=request.sid)
 
 @socketio.on('request_symbol_list')
 def handle_request_symbol_list():
-    if SYMBOLS_LOADED_EVENT.is_set():
+    """Allows the client to ask for the list if it missed the first broadcast."""
+    if SYMBOLS_LOADED:
         socketio.emit('symbol_list', {'symbols': BINANCE_SYMBOLS}, room=request.sid)
 
 @socketio.on('start_monitoring')
@@ -166,6 +167,7 @@ def handle_disconnect():
 # --- Main Execution ---
 if __name__ == '__main__':
     # **DEFINITIVE FIX:** Use the official socketio method to start the background task.
+    # This runs ONCE when the server starts.
     socketio.start_background_task(get_binance_usdt_symbols)
     logging.info("Starting Flask-SocketIO server...")
     socketio.run(app, host='0.0.0.0', port=5000)
