@@ -25,7 +25,7 @@ TELEGRAM_CHAT_ID = "YOUR_TELEGRAM_CHAT_ID"
 ACTIVE_TASKS = {}
 lock = threading.Lock()
 BINANCE_SYMBOLS = []
-# **DEFINITIVE FIX:** Use a threading.Event to safely signal when symbols are loaded.
+# Use a threading.Event to safely signal when symbols are loaded.
 SYMBOLS_LOADED_EVENT = threading.Event()
 
 # --- Binance API Functions ---
@@ -56,7 +56,7 @@ def get_binance_usdt_symbols():
         logging.error(f"BACKGROUND TASK: Could not fetch symbols: {e}. Using fallback list.")
         BINANCE_SYMBOLS = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT", "ADAUSDT", "BNBUSDT", "AVAXUSDT"]
     finally:
-        # Signal that the loading process is complete, whether it succeeded or failed.
+        # **CRITICAL FIX:** Signal that the loading process is complete, whether it succeeded or failed.
         SYMBOLS_LOADED_EVENT.set()
         # After loading, broadcast the list to all currently connected clients.
         socketio.emit('symbol_list', {'symbols': BINANCE_SYMBOLS})
@@ -165,6 +165,7 @@ def handle_disconnect():
 
 # --- Main Execution ---
 if __name__ == '__main__':
+    # **DEFINITIVE FIX:** Use the official socketio method to start the background task.
     socketio.start_background_task(get_binance_usdt_symbols)
     logging.info("Starting Flask-SocketIO server...")
     socketio.run(app, host='0.0.0.0', port=5000)
