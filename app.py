@@ -25,7 +25,7 @@ TELEGRAM_CHAT_ID = "1969994554"
 ACTIVE_TASKS = {}
 lock = threading.Lock()
 BINANCE_SYMBOLS = []
-# **DEFINITIVE FIX:** Use a simple boolean flag to track if symbols have been loaded.
+# **DEFINITIVE FIX:** Use a simple boolean flag, not a threading.Event
 SYMBOLS_LOADED = False
 
 # --- Binance API Functions ---
