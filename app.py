@@ -134,13 +134,12 @@ def handle_connect():
     global SYMBOLS_LOADED
     logging.info(f'Client connected: {request.sid}')
     
-    # **DEFINITIVE FIX:** Only the very first client connection will trigger the symbol fetch.
     with lock:
         if not SYMBOLS_LOADED:
-            # Use start_background_task here, as it's triggered by a client event.
             socketio.start_background_task(get_binance_usdt_symbols)
     
-    # The client will request the list, which will be sent once loaded.
+    if SYMBOLS_LOADED:
+        socketio.emit('symbol_list', {'symbols': BINANCE_SYMBOLS}, room=request.sid)
 
 @socketio.on('request_symbol_list')
 def handle_request_symbol_list():
